@@ -14,7 +14,11 @@ st.set_page_config(
 )
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-DATA_FILE = "transactions.csv"
+ACCOUNTS = ["👤 Mine", "👤 Wife"]
+DATA_FILES = {
+    "👤 Mine": "transactions_me.csv",
+    "👤 Wife": "transactions_wife.csv",
+}
 INCOME_CATEGORIES  = ["Salary", "Freelance", "Investment", "Gift", "Other Income"]
 EXPENSE_CATEGORIES = ["Food", "Rent", "Transport", "Shopping", "Entertainment", "Health", "Utilities", "Other"]
 
@@ -31,9 +35,11 @@ LIGHT = {
     "btn_txt":"#FFFFFF",
 }
 
-# ── Theme state ───────────────────────────────────────────────────────────────
+# ── Theme & account state ─────────────────────────────────────────────────────
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
+if "account" not in st.session_state:
+    st.session_state.account = "👤 Mine"
 
 P = DARK if st.session_state.dark_mode else LIGHT
 
@@ -53,6 +59,20 @@ html, body, [data-testid="stAppViewContainer"], [data-testid="stMain"] {{
 }}
 [data-testid="stSidebar"] * {{ color: {P['text']} !important; }}
 h1, h2, h3 {{ font-family: 'Space Grotesk', sans-serif; color: {P['text']}; }}
+
+.account-bar {{
+    display: flex; gap: 8px; margin-bottom: 16px;
+}}
+.acc-btn {{
+    flex: 1; padding: 8px 0; border-radius: 8px; border: 1px solid {P['border']};
+    background: {P['bg']}; color: {P['muted']}; font-size: 13px; font-weight: 600;
+    text-align: center; cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+}}
+.acc-btn-active {{
+    flex: 1; padding: 8px 0; border-radius: 8px; border: none;
+    background: {P['green']}; color: {P['btn_txt']}; font-size: 13px; font-weight: 700;
+    text-align: center; font-family: 'Space Grotesk', sans-serif;
+}}
 
 .metric-card {{
     background: {P['card']}; border: 1px solid {P['border']};
@@ -99,22 +119,22 @@ h1, h2, h3 {{ font-family: 'Space Grotesk', sans-serif; color: {P['text']}; }}
 }}
 .stRadio > div {{ gap: 10px; }}
 .stRadio label {{ color: {P['text']} !important; }}
-div[data-testid="stMetric"] {{
-    background: {P['card']}; border: 1px solid {P['border']};
-    border-radius: 14px; padding: 16px 20px;
-}}
 footer {{ display: none; }}
 </style>
 """, unsafe_allow_html=True)
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
-def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE, parse_dates=["date"])
+def get_data_file():
+    return DATA_FILES[st.session_state.account]
+
+def load_data(account):
+    f = DATA_FILES[account]
+    if os.path.exists(f):
+        return pd.read_csv(f, parse_dates=["date"])
     return pd.DataFrame(columns=["date", "type", "category", "amount", "note"])
 
 def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
+    df.to_csv(get_data_file(), index=False)
 
 def add_transaction(df, tx_date, tx_type, category, amount, note):
     new_row = pd.DataFrame([{"date": pd.to_datetime(tx_date), "type": tx_type,
@@ -123,14 +143,14 @@ def add_transaction(df, tx_date, tx_type, category, amount, note):
     save_data(df)
     return df
 
-# ── Load state ────────────────────────────────────────────────────────────────
-if "df" not in st.session_state:
-    st.session_state.df = load_data()
-df = st.session_state.df
+# ── Load data for current account ─────────────────────────────────────────────
+df_key = f"df_{st.session_state.account}"
+if df_key not in st.session_state:
+    st.session_state[df_key] = load_data(st.session_state.account)
+df = st.session_state[df_key]
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    # Title + theme toggle on same row
     title_col, toggle_col = st.columns([2, 1])
     with title_col:
         st.markdown("## 💸 SpendWise")
@@ -140,6 +160,22 @@ with st.sidebar:
         icon = "☀️" if st.session_state.dark_mode else "🌙"
         if st.button(icon, help="Toggle light/dark mode"):
             st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
+
+    st.markdown("---")
+
+    # ── Account switcher ──────────────────────────────────────────────────
+    st.markdown("### Account")
+    acc_col1, acc_col2 = st.columns(2)
+    with acc_col1:
+        cls = "acc-btn-active" if st.session_state.account == "👤 Mine" else "acc-btn"
+        if st.button("👤 Mine", use_container_width=True):
+            st.session_state.account = "👤 Mine"
+            st.rerun()
+    with acc_col2:
+        cls = "acc-btn-active" if st.session_state.account == "👤 Wife" else "acc-btn"
+        if st.button("👤 Wife", use_container_width=True):
+            st.session_state.account = "👤 Wife"
             st.rerun()
 
     st.markdown("---")
@@ -154,9 +190,9 @@ with st.sidebar:
 
     if st.button("Add Transaction"):
         if amount > 0:
-            st.session_state.df = add_transaction(st.session_state.df, tx_date, tx_type, category, amount, note)
-            df = st.session_state.df
-            st.success("Transaction added!")
+            st.session_state[df_key] = add_transaction(st.session_state[df_key], tx_date, tx_type, category, amount, note)
+            df = st.session_state[df_key]
+            st.success(f"Added to {st.session_state.account}!")
         else:
             st.error("Amount must be greater than 0.")
 
@@ -174,10 +210,11 @@ if selected_month != "All" and not df.empty:
     filtered = df[df["date"].dt.to_period("M").astype(str) == selected_month]
 
 # ── Main area ─────────────────────────────────────────────────────────────────
-st.markdown("# Dashboard")
+acc_label = st.session_state.account.replace("👤 ", "")
+st.markdown(f"# {st.session_state.account} Dashboard")
 
 if filtered.empty:
-    st.info("No transactions yet. Add your first one from the sidebar! 👈")
+    st.info(f"No transactions yet for {acc_label}. Add your first one from the sidebar! 👈")
 else:
     income_df  = filtered[filtered["type"] == "Income"]
     expense_df = filtered[filtered["type"] == "Expense"]
@@ -223,7 +260,6 @@ else:
                         color=P["text"], fontsize=10, fontweight="600")
             ax.set_xlim(0, max(cat_totals.values) * 1.25)
             ax.tick_params(axis="y", colors=P["text"], labelsize=11)
-            ax.tick_params(axis="x", colors=P["muted"], labelsize=9)
             ax.spines[["top","right","left","bottom"]].set_visible(False)
             ax.xaxis.set_visible(False)
             ax.yaxis.set_tick_params(length=0)
@@ -271,7 +307,7 @@ else:
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🗑️ Delete Last Transaction"):
-        if not st.session_state.df.empty:
-            st.session_state.df = st.session_state.df.iloc[:-1].reset_index(drop=True)
-            save_data(st.session_state.df)
+        if not st.session_state[df_key].empty:
+            st.session_state[df_key] = st.session_state[df_key].iloc[:-1].reset_index(drop=True)
+            save_data(st.session_state[df_key])
             st.rerun()
