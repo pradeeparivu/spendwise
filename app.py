@@ -21,7 +21,7 @@ EXPENSE_CATEGORIES = ["Food", "Rent", "Transport", "Shopping", "Entertainment", 
 
 USERS = {
     "demo": {"password": "demo123", "accounts": ["Demo"],        "is_demo": True},
-    "DheepTina":  {"password": "Dhiyazh1006", "accounts": ["Pradeep", "Tina"],"is_demo": False},
+    "dheeptina":  {"password": "Dhiyazh1006", "accounts": ["Pradeep", "Tina"],"is_demo": False},
 }
 
 DARK = {
