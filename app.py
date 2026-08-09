@@ -36,9 +36,32 @@ LIGHT = {
 }
 
 # ── Session defaults ──────────────────────────────────────────────────────────
-for key, val in [("dark_mode",True),("logged_in",False),("username",""),("account","")]:
+for key, val in [("dark_mode",False),("logged_in",False),("username",""),("account","")]:
     if key not in st.session_state:
         st.session_state[key] = val
+
+# ── Remember Me ───────────────────────────────────────────────────────────────
+import hashlib, base64
+
+def make_token(username, password):
+    raw = f"{username}:{password}:spendwise-secret"
+    return base64.urlsafe_b64encode(hashlib.sha256(raw.encode()).digest()).decode()[:20]
+
+def check_token(token):
+    for uname, cfg in USERS.items():
+        if cfg.get("is_demo"):
+            continue
+        if make_token(uname, cfg["password"]) == token:
+            return uname
+    return None
+
+params = st.query_params
+if not st.session_state.logged_in and "token" in params:
+    uname = check_token(params["token"])
+    if uname:
+        st.session_state.logged_in = True
+        st.session_state.username  = uname
+        st.session_state.account   = USERS[uname]["accounts"][0]
 
 P = DARK if st.session_state.dark_mode else LIGHT
 
@@ -161,14 +184,20 @@ if not st.session_state.logged_in:
     with col:
         st.markdown(f"<h1 style='text-align:center'>💸 SpendWise</h1>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align:center;color:{P['muted']};margin-bottom:24px'>Your personal finance tracker</p>", unsafe_allow_html=True)
-        username = st.text_input("Username", placeholder="Enter username")
-        password = st.text_input("Password", type="password", placeholder="Enter password")
+        username    = st.text_input("Username", placeholder="Enter username")
+        password    = st.text_input("Password", type="password", placeholder="Enter password")
+        remember_me = st.checkbox("Keep me logged in on this device")
         if st.button("Login"):
-            user = USERS.get(username.strip().lower())
+            uname = username.strip().lower()
+            user  = USERS.get(uname)
             if user and password == user["password"]:
                 st.session_state.logged_in = True
-                st.session_state.username  = username.strip().lower()
+                st.session_state.username  = uname
                 st.session_state.account   = user["accounts"][0]
+                # Set token in URL if remember me checked and not demo
+                if remember_me and not user.get("is_demo"):
+                    token = make_token(uname, user["password"])
+                    st.query_params["token"] = token
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -263,6 +292,7 @@ with st.sidebar:
             st.rerun()
 
     if st.button("🚪 Logout"):
+        st.query_params.clear()
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
