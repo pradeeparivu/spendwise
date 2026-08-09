@@ -40,7 +40,7 @@ for key, val in [("dark_mode",False),("logged_in",False),("username",""),("accou
     if key not in st.session_state:
         st.session_state[key] = val
 
-# ── Remember Me ───────────────────────────────────────────────────────────────
+# ── Remember Me via URL token ────────────────────────────────────────────────
 import hashlib, base64
 
 def make_token(username, password):
@@ -55,13 +55,22 @@ def check_token(token):
             return uname
     return None
 
-params = st.query_params
-if not st.session_state.logged_in and "token" in params:
-    uname = check_token(params["token"])
-    if uname:
-        st.session_state.logged_in = True
-        st.session_state.username  = uname
-        st.session_state.account   = USERS[uname]["accounts"][0]
+# Check token from query params BEFORE any rerun
+if not st.session_state.logged_in:
+    params = st.query_params
+    if "token" in params:
+        uname = check_token(params["token"])
+        if uname:
+            st.session_state.logged_in  = True
+            st.session_state.username   = uname
+            st.session_state.account    = USERS[uname]["accounts"][0]
+            st.session_state.remember_token = params["token"]
+    elif "remember_token" in st.session_state:
+        uname = check_token(st.session_state.remember_token)
+        if uname:
+            st.session_state.logged_in = True
+            st.session_state.username  = uname
+            st.session_state.account   = USERS[uname]["accounts"][0]
 
 P = DARK if st.session_state.dark_mode else LIGHT
 
@@ -194,10 +203,14 @@ if not st.session_state.logged_in:
                 st.session_state.logged_in = True
                 st.session_state.username  = uname
                 st.session_state.account   = user["accounts"][0]
-                # Set token in URL if remember me checked and not demo
                 if remember_me and not user.get("is_demo"):
                     token = make_token(uname, user["password"])
+                    st.session_state.remember_token = token
                     st.query_params["token"] = token
+                else:
+                    # clear any old token
+                    st.session_state.pop("remember_token", None)
+                    st.query_params.clear()
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -293,8 +306,7 @@ with st.sidebar:
 
     if st.button("🚪 Logout"):
         st.query_params.clear()
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
+        st.session_state.clear()
         st.rerun()
 
 # ── Filter ────────────────────────────────────────────────────────────────────
