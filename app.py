@@ -21,7 +21,7 @@ EXPENSE_CATEGORIES = ["Food", "Rent", "Transport", "Shopping", "Entertainment", 
 
 USERS = {
     "demo": {"password": "demo123", "accounts": ["Demo"],        "is_demo": True},
-    "raj":  {"password": "raj@123", "accounts": ["Mine", "Wife"],"is_demo": False},
+    "DheepTina":  {"password": "Dhiyazh1006", "accounts": ["Pradeep", "Tina"],"is_demo": False},
 }
 
 DARK = {
@@ -116,13 +116,12 @@ def save_transaction_sheet(account, tx_date, tx_type, category, amount, note):
         st.error(f"Could not save: {e}")
         return False
 
-def delete_last_sheet(account):
+def delete_row_by_index(account, row_index):
+    # row_index is 0-based from dataframe; +2 to account for header row and 1-based sheet index
     try:
         sheet = get_sheet()
         ws    = ensure_worksheet(sheet, account)
-        last  = len(ws.get_all_values())
-        if last > 1:
-            ws.delete_rows(last)
+        ws.delete_rows(row_index + 2)
         return True
     except Exception as e:
         st.error(f"Could not delete: {e}")
@@ -331,19 +330,51 @@ else:
         fig2.tight_layout(); st.pyplot(fig2)
 
     st.markdown('<div class="section-title">Recent Transactions</div>', unsafe_allow_html=True)
-    for _, row in filtered.sort_values("date", ascending=False).head(20).iterrows():
+
+    # confirm state
+    if "confirm_delete" not in st.session_state:
+        st.session_state.confirm_delete = None
+
+    recent = filtered.sort_values("date", ascending=False).head(20)
+
+    for df_idx, row in recent.iterrows():
         is_inc    = row["type"] == "Income"
         sign      = "+" if is_inc else "−"
         amt_class = "tx-amt-income" if is_inc else "tx-amt-expense"
         note_html = f'<span class="tx-note"> · {row["note"]}</span>' if pd.notna(row["note"]) and str(row["note"]).strip() else ""
-        st.markdown(f"""<div class="tx-row"><div><span class="tx-cat">{row['category']}</span>{note_html}<br>
-        <span class="tx-date">{pd.to_datetime(row['date']).strftime('%d %b %Y')}</span></div>
-        <span class="{amt_class}">{sign}₹{row['amount']:,.2f}</span></div>""", unsafe_allow_html=True)
 
-    if not is_demo:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🗑️ Delete Last Transaction"):
-            ok = delete_last_sheet(st.session_state.account)
-            if ok:
-                st.session_state[df_key] = load_data_sheet(st.session_state.account)
-                st.rerun()
+        col_info, col_amt, col_btn = st.columns([5, 2, 1])
+
+        with col_info:
+            st.markdown(f"""<div style="padding:10px 0">
+                <span class="tx-cat">{row['category']}</span>{note_html}<br>
+                <span class="tx-date">{pd.to_datetime(row['date']).strftime('%d %b %Y')}</span>
+            </div>""", unsafe_allow_html=True)
+
+        with col_amt:
+            st.markdown(f"""<div style="padding:14px 0">
+                <span class="{amt_class}">{sign}₹{row['amount']:,.2f}</span>
+            </div>""", unsafe_allow_html=True)
+
+        with col_btn:
+            if not is_demo:
+                if st.session_state.confirm_delete == df_idx:
+                    # show confirm / cancel
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅", key=f"confirm_{df_idx}", help="Confirm delete"):
+                            ok = delete_row_by_index(st.session_state.account, df_idx)
+                            if ok:
+                                st.session_state.confirm_delete = None
+                                st.session_state[df_key] = load_data_sheet(st.session_state.account)
+                                st.rerun()
+                    with c2:
+                        if st.button("❌", key=f"cancel_{df_idx}", help="Cancel"):
+                            st.session_state.confirm_delete = None
+                            st.rerun()
+                else:
+                    if st.button("🗑️", key=f"del_{df_idx}", help="Delete this transaction"):
+                        st.session_state.confirm_delete = df_idx
+                        st.rerun()
+
+        st.markdown(f"<hr style='border:none;border-top:1px solid {P['border']};margin:0'>", unsafe_allow_html=True)
