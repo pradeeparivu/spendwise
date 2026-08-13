@@ -19,9 +19,10 @@ SHEET_ID           = "1_-agCHngVcvP3LRErDAlcTJzAt5BkxfHtdMqpWHNF5M"
 INCOME_CATEGORIES  = ["Salary", "Freelance", "Investment", "Gift", "Other Income"]
 EXPENSE_CATEGORIES = ["Food", "Rent", "Transport", "Shopping", "Entertainment", "Health", "Utilities", "Other"]
 
+
 USERS = {
-    "demo": {"password": "demo123", "accounts": ["Demo"],        "is_demo": True},
-    "dheeptina":  {"password": "Dhiyazh1006", "accounts": ["Pradeep", "Tina"],"is_demo": False},
+    "demo": {"password": "demo123","accounts": ["Demo"],"is_demo": True},
+    "dheeptina": {"password": st.secrets["MY_PASSWORD"],   "accounts": ["Pradeep", "Tina"], "is_demo": False},
 }
 
 DARK = {
